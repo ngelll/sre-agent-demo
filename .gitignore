@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+vars.env
+appi_cs
+law_id
