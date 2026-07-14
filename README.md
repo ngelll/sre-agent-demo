@@ -1,5 +1,7 @@
 # SRE Agent Demo
 
+> **English**: this file · **中文**: [README.zh-CN.md](./README.zh-CN.md)
+>
 > Two-app AKS environment that demonstrates **Azure SRE Agent** (Preview, GA July 2025) auto-triaging real incidents.
 > One `bash deploy.sh` from zero to a running demo, ~10 minutes, ~$2/day.
 
