@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>📊 Report Center — SRE Agent Live Demo</title>
+<style>
+  :root {
+    --ok:#10b981; --err:#ef4444; --warn:#f59e0b; --bg:#f8fafc; --card:#fff;
+    --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --brand:#0ea5e9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Helvetica Neue",sans-serif}
+  body{background:var(--bg);color:var(--text);line-height:1.5;padding:20px}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;background:var(--card);padding:16px 24px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:20px}
+  header h1{font-size:22px;font-weight:700}
+  header .status-pill{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;background:#dbeafe;color:#1e40af}
+  header .status-pill.warn{background:#fef3c7;color:#92400e}
+  header .status-pill.err{background:#fee2e2;color:#991b1b}
+  header .status-pill .dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:20px}
+  @media(max-width:800px){.grid{grid-template-columns:1fr}}
+
+  .card{background:var(--card);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .card h2{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+  .report{display:flex;justify-content:space-between;align-items:center;padding:16px;border:1px solid var(--border);border-radius:10px;margin-bottom:12px;transition:all .2s}
+  .report:hover{border-color:var(--brand)}
+  .report .info .name{font-weight:600;margin-bottom:4px;font-size:15px}
+  .report .info .desc{font-size:12px;color:var(--muted)}
+  .report button{padding:10px 20px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap}
+  .report button:hover:not(:disabled){background:#0284c7;transform:translateY(-1px)}
+  .report button:disabled{opacity:.5;cursor:not-allowed}
+  .report.heavy{border-color:#f59e0b;background:#fffbeb}
+  .report.heavy button{background:#f59e0b}
+  .report.heavy button:hover:not(:disabled){background:#d97706}
+
+  .toast-container{position:fixed;top:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:10px;max-width:400px}
+  .toast{padding:14px 18px;border-radius:10px;color:#fff;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:slideIn .3s ease}
+  .toast.ok{background:var(--ok)}
+  .toast.err{background:var(--err)}
+  .toast.warn{background:var(--warn)}
+  .toast.info{background:var(--brand)}
+  .toast .title{font-weight:700;margin-bottom:4px}
+  .toast .msg{font-size:13px;opacity:.95}
+  @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+  .metric{padding:12px 0;border-bottom:1px solid var(--border)}
+  .metric:last-child{border-bottom:none}
+  .metric .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .metric .value{font-size:22px;font-weight:700}
+  .metric .value.err{color:var(--err)}
+  .metric .value.ok{color:var(--ok)}
+  .metric .value.warn{color:var(--warn)}
+
+  .feed{max-height:260px;overflow-y:auto;font-family:"SF Mono","Monaco","Menlo",monospace;font-size:11px;background:#0f172a;color:#94a3b8;padding:12px;border-radius:8px;margin-top:12px}
+  .feed .line{padding:2px 0}
+  .feed .line.err{color:#f87171}
+  .feed .line.ok{color:#4ade80}
+  .feed .line.info{color:#60a5fa}
+  .feed .line.warn{color:#fbbf24}
+  .feed .ts{color:#475569;margin-right:8px}
+
+  .progress{width:100%;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:8px}
+  .progress .bar{height:100%;background:linear-gradient(90deg, var(--brand), #6366f1);transition:width .3s;width:0%}
+  .progress .bar.warn{background:linear-gradient(90deg, #f59e0b, #ef4444)}
+
+  .replicas{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .pod{padding:6px 10px;background:#dbeafe;color:#1e40af;border-radius:6px;font-size:11px;font-weight:600;font-family:"SF Mono",monospace}
+  .pod.new{background:#dcfce7;color:#166534;animation:podIn .5s ease}
+  @keyframes podIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<div class="toast-container" id="toasts"></div>
+<div class="wrap">
+  <header>
+    <h1>📊 Report Center <span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px">Financial Reporting Platform</span></h1>
+    <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">系统正常</span></div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: report actions -->
+    <div>
+      <div class="card">
+        <h2>📄 可生成报表</h2>
+
+        <div class="report">
+          <div class="info">
+            <div class="name">📈 日销售汇总</div>
+            <div class="desc">当日销售数据的简易汇总，耗时低。</div>
+          </div>
+          <button onclick="runReport('daily', false)">生成报表</button>
+        </div>
+
+        <div class="report">
+          <div class="info">
+            <div class="name">📊 周库存报告</div>
+            <div class="desc">按 SKU 分组的库存状态，中等耗时。</div>
+          </div>
+          <button onclick="runReport('weekly', false)">生成报表</button>
+        </div>
+
+        <div class="report heavy">
+          <div class="info">
+            <div class="name">🔥 月度全量分析</div>
+            <div class="desc">上月全量数据聚合、逐笔计算加权指标 —— <b>会触发已知 CPU spike bug</b>。</div>
+          </div>
+          <button onclick="runReport('monthly', true)" id="monthlyBtn">生成报表</button>
+        </div>
+
+        <div class="progress"><div class="bar" id="progressBar"></div></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px" id="progressText">就绪</div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h2>📋 最近生成的报表</h2>
+        <div id="reportList" style="font-size:14px;color:var(--muted);text-align:center;padding:20px">暂无报表</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: cluster status -->
+    <div>
+      <div class="card">
+        <h2>⚡ 集群状态</h2>
+        <div class="metric">
+          <div class="label">当前 Pod 数量</div>
+          <div class="value ok" id="mReplicas">1</div>
+          <div class="replicas" id="podList"><div class="pod">web-app-b-xxxxx</div></div>
+        </div>
+        <div class="metric">
+          <div class="label">最近1分钟平均CPU</div>
+          <div class="value ok" id="mCpu">~ 5%</div>
+        </div>
+        <div class="metric">
+          <div class="label">报表请求总数</div>
+          <div class="value" id="mTotal">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">当前事故</div>
+          <div class="value" id="mIncident" style="font-size:14px">无</div>
+        </div>
+        <div class="feed" id="feed"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {total:0, heavy:0, incidentId:null};
+
+async function runReport(kind, isHeavy){
+  const btn = event.target;
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = '处理中...';
+
+  state.total++;
+  if(isHeavy) state.heavy++;
+  renderMetrics();
+
+  const bar = document.getElementById('progressBar');
+  const barText = document.getElementById('progressText');
+  bar.classList.toggle('warn', isHeavy);
+  bar.style.width = '5%';
+  barText.textContent = `执行中: ${kind} 报表...`;
+
+  logFeed(isHeavy ? 'warn' : 'info', `POST /api/report/${kind}${isHeavy?' (heavy)':''}`);
+
+  if(isHeavy){
+    setStatus('warn', '⚠️ CPU 高负载');
+    document.getElementById('mIncident').textContent = 'INC-2026-07-13-002';
+    state.incidentId = 'INC-2026-07-13-002';
+  }
+
+  const t0 = Date.now();
+
+  // Progress simulation
+  let p = 5;
+  const timer = setInterval(()=>{
+    p = Math.min(p + Math.random()*8, 95);
+    bar.style.width = p + '%';
+  }, 500);
+
+  try {
+    const r = await fetch('/b/api/report/'+kind, {method:'POST'});
+    clearInterval(timer);
+    bar.style.width = '100%';
+    const data = await r.json();
+    const dt = Date.now() - t0;
+    if(r.ok){
+      logFeed('ok', `POST /api/report/${kind} → 200 report_id=${data.report_id} took=${dt}ms`);
+      toast('ok', '✅ 报表已生成', `${data.report_id} (${dt}ms)`);
+      addReport(data.report_id, kind, dt);
+      barText.textContent = `完成: ${data.report_id} (${dt}ms)`;
+    } else {
+      logFeed('err', `POST /api/report/${kind} → ${r.status} ${data.message||''}`);
+      toast('err', '❌ 生成失败', data.message || '未知错误');
+      barText.textContent = `失败: ${data.message||''}`;
+    }
+  } catch(e){
+    clearInterval(timer);
+    logFeed('err', `POST /api/report/${kind} → NETWORK ERROR`);
+    toast('err', '❌ 网络错误', e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = originalText;
+}
+
+function addReport(id, kind, ms){
+  const list = document.getElementById('reportList');
+  if(list.textContent === '暂无报表') list.innerHTML = '';
+  list.style.cssText='';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid var(--border);font-size:13px';
+  row.innerHTML = `<span><b>${id}</b> · ${kind}</span><span style="color:var(--muted)">${ms}ms · 刚刚</span>`;
+  list.insertBefore(row, list.firstChild);
+  while(list.children.length > 6) list.removeChild(list.lastChild);
+}
+
+function setStatus(type, text){
+  const pill = document.getElementById('statusPill');
+  pill.className = 'status-pill ' + (type==='ok'?'':type);
+  document.getElementById('statusText').textContent = text;
+}
+
+async function refreshCluster(){
+  try {
+    const r = await fetch('/b/api/cluster');
+    const s = await r.json();
+    // pods
+    const podList = document.getElementById('podList');
+    const oldPodNames = Array.from(podList.querySelectorAll('.pod')).map(el=>el.textContent);
+    podList.innerHTML = '';
+    s.pods.forEach(name => {
+      const el = document.createElement('div');
+      el.className = 'pod' + (oldPodNames.includes(name)?'':' new');
+      el.textContent = name;
+      podList.appendChild(el);
+    });
+    const nPods = s.pods.length;
+    const mR = document.getElementById('mReplicas');
+    mR.textContent = nPods;
+    mR.className = 'value ' + (nPods>=3?'warn':(nPods>=2?'warn':'ok'));
+
+    // CPU
+    const cpu = s.cpu_percent || 0;
+    const mC = document.getElementById('mCpu');
+    mC.textContent = '~ ' + cpu + '%';
+    mC.className = 'value ' + (cpu>70?'err':(cpu>40?'warn':'ok'));
+
+    // status pill
+    if(cpu > 70) setStatus('err', '🔴 CPU 过载');
+    else if(cpu > 40 || nPods > 1) setStatus('warn', '⚠️ 高负载扩容中');
+    else { setStatus('ok', '系统正常'); document.getElementById('mIncident').textContent = state.incidentId ? state.incidentId+' (已缓解)':'无'; }
+
+    if(oldPodNames.length > 0 && nPods > oldPodNames.length){
+      const newOnes = s.pods.filter(n=>!oldPodNames.includes(n));
+      newOnes.forEach(n=> logFeed('warn', `HPA scaled up: new pod ${n}`));
+      toast('info', '📈 HPA 触发扩容', `${oldPodNames.length} → ${nPods} pods`);
+    }
+    if(oldPodNames.length > 0 && nPods < oldPodNames.length){
+      logFeed('info', `HPA scaled down: ${oldPodNames.length} → ${nPods} pods`);
+    }
+  } catch(e){}
+}
+
+function renderMetrics(){
+  document.getElementById('mTotal').textContent = state.total;
+}
+
+function logFeed(type, msg){
+  const feed = document.getElementById('feed');
+  const line = document.createElement('div');
+  line.className = 'line ' + type;
+  const ts = new Date().toISOString().substr(11,8);
+  line.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+  feed.appendChild(line);
+  feed.scrollTop = feed.scrollHeight;
+  while(feed.children.length > 40) feed.removeChild(feed.firstChild);
+}
+
+let toastId = 0;
+function toast(type, title, msg){
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.innerHTML = `<div class="title">${title}</div><div class="msg">${msg}</div>`;
+  c.appendChild(t);
+  setTimeout(()=>{ t.style.opacity=0; t.style.transform='translateX(400px)'; setTimeout(()=>t.remove(),300); }, 3500);
+}
+
+refreshCluster();
+setInterval(refreshCluster, 3000);
+logFeed('info', 'report center UI ready');
+</script>
+</body>
+</html>

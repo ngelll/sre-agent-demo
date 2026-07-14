@@ -1,6 +1,23 @@
+# ----- Python -----
 __pycache__/
 *.pyc
+*.pyo
+
+# ----- Secrets / local state (DO NOT COMMIT) -----
 .env
+*.env
+!.env.example
 vars.env
 appi_cs
 law_id
+external_ip
+.acr_login_server
+.aks_kubeconfig
+
+# ----- Sales / customer-only material (kept local, never public) -----
+deliverables/
+
+# ----- Local scratch -----
+.DS_Store
+*.swp
+*.tmp

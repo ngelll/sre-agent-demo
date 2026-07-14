@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🛒 Demo Shop — SRE Agent Live Demo</title>
+<style>
+  :root {
+    --ok:#10b981; --err:#ef4444; --warn:#f59e0b; --bg:#f8fafc; --card:#fff;
+    --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --brand:#6366f1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Helvetica Neue",sans-serif}
+  body{background:var(--bg);color:var(--text);line-height:1.5;padding:20px}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;background:var(--card);padding:16px 24px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:20px}
+  header h1{font-size:22px;font-weight:700}
+  header .status-pill{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;background:#dcfce7;color:#166534}
+  header .status-pill.err{background:#fee2e2;color:#991b1b}
+  header .status-pill .dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:20px}
+  @media(max-width:800px){.grid{grid-template-columns:1fr}}
+
+  .card{background:var(--card);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .card h2{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+  .product{display:flex;gap:16px;padding:16px;border:1px solid var(--border);border-radius:10px;margin-bottom:12px;transition:all .2s}
+  .product:hover{border-color:var(--brand);transform:translateY(-1px)}
+  .product .thumb{width:64px;height:64px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0}
+  .product .info{flex:1}
+  .product .name{font-weight:600;margin-bottom:4px}
+  .product .price{color:var(--brand);font-weight:700;font-size:18px}
+  .product button{padding:8px 16px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:600;cursor:pointer;align-self:center;transition:all .2s}
+  .product button:hover{background:#4f46e5;transform:scale(1.05)}
+
+  .cart-summary{display:flex;justify-content:space-between;align-items:center;padding:16px;background:#f1f5f9;border-radius:10px;margin-bottom:16px}
+  .cart-summary .count{font-size:15px;color:var(--muted)}
+  .cart-summary .total{font-size:22px;font-weight:700;color:var(--brand)}
+
+  .checkout-btn{width:100%;padding:18px;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s}
+  .checkout-btn:hover:not(:disabled){background:#4f46e5;transform:translateY(-1px);box-shadow:0 4px 12px rgba(99,102,241,.4)}
+  .checkout-btn:disabled{opacity:.5;cursor:not-allowed}
+
+  .toast-container{position:fixed;top:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:10px;max-width:400px}
+  .toast{padding:14px 18px;border-radius:10px;color:#fff;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:slideIn .3s ease}
+  .toast.ok{background:var(--ok)}
+  .toast.err{background:var(--err)}
+  .toast.warn{background:var(--warn)}
+  .toast .title{font-weight:700;margin-bottom:4px}
+  .toast .msg{font-size:13px;opacity:.95}
+  @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+  .metric{padding:12px 0;border-bottom:1px solid var(--border)}
+  .metric:last-child{border-bottom:none}
+  .metric .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .metric .value{font-size:20px;font-weight:700}
+  .metric .value.err{color:var(--err)}
+  .metric .value.ok{color:var(--ok)}
+
+  .feed{max-height:220px;overflow-y:auto;font-family:"SF Mono","Monaco","Menlo",monospace;font-size:11px;background:#0f172a;color:#94a3b8;padding:12px;border-radius:8px;margin-top:12px}
+  .feed .line{padding:2px 0}
+  .feed .line.err{color:#f87171}
+  .feed .line.ok{color:#4ade80}
+  .feed .line.info{color:#60a5fa}
+  .feed .ts{color:#475569;margin-right:8px}
+
+  .admin{margin-top:20px;padding:16px;background:#fef3c7;border:2px dashed #f59e0b;border-radius:10px}
+  .admin h3{font-size:13px;font-weight:700;color:#92400e;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+  .toggle-row label{font-size:14px;font-weight:500}
+  .switch{position:relative;width:48px;height:26px;background:var(--ok);border-radius:999px;cursor:pointer;transition:all .2s}
+  .switch.off{background:#94a3b8}
+  .switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .switch.off::after{left:25px}
+  .admin .hint{font-size:11px;color:#78716c;margin-top:8px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="toast-container" id="toasts"></div>
+<div class="wrap">
+  <header>
+    <h1>🛒 Demo Shop <span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px">powered by SRE Agent</span></h1>
+    <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">系统正常</span></div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: shop -->
+    <div>
+      <div class="card">
+        <h2>🎁 精选商品</h2>
+        <div id="products"></div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h2>🛍️ 我的购物车</h2>
+        <div class="cart-summary">
+          <div class="count">共 <span id="cartCount">0</span> 件商品</div>
+          <div class="total">¥<span id="cartTotal">0</span></div>
+        </div>
+        <button class="checkout-btn" id="checkoutBtn" onclick="checkout()">立即结账</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: metrics + admin -->
+    <div>
+      <div class="card">
+        <h2>📊 系统状态</h2>
+        <div class="metric">
+          <div class="label">最近1分钟成功率</div>
+          <div class="value ok" id="mSuccessRate">100%</div>
+        </div>
+        <div class="metric">
+          <div class="label">下单尝试总数</div>
+          <div class="value" id="mTotal">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">失败次数</div>
+          <div class="value err" id="mFail">0</div>
+        </div>
+        <div class="metric">
+          <div class="label">当前事故</div>
+          <div class="value" id="mIncident" style="font-size:14px">无</div>
+        </div>
+        <div class="feed" id="feed"></div>
+      </div>
+
+      <div class="admin">
+        <h3>🔧 Ops 控制台（演示用）</h3>
+        <div class="toggle-row">
+          <label>Payment Service 健康</label>
+          <div class="switch" id="paySwitch" onclick="togglePayment()"></div>
+        </div>
+        <div class="hint">关闭 = 模拟支付服务故障，下单会 500。<br>Agent 修复时也会调这个开关。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const products = [
+  {id:1, emoji:'📱', name:'iPhone 17 Pro', price:9999},
+  {id:2, emoji:'💻', name:'MacBook Air M4', price:7999},
+  {id:3, emoji:'🎧', name:'AirPods Pro 3', price:1999},
+  {id:4, emoji:'⌚', name:'Apple Watch S11', price:3299},
+];
+const cart = {};
+const metrics = {total:0, fail:0, lastMinute:[]};
+
+function renderProducts(){
+  document.getElementById('products').innerHTML = products.map(p => `
+    <div class="product">
+      <div class="thumb">${p.emoji}</div>
+      <div class="info">
+        <div class="name">${p.name}</div>
+        <div class="price">¥${p.price}</div>
+      </div>
+      <button onclick="addToCart(${p.id})">加入购物车</button>
+    </div>
+  `).join('');
+}
+function addToCart(id){
+  cart[id] = (cart[id]||0)+1;
+  renderCart();
+  toast('ok', '已加入购物车', products.find(p=>p.id===id).name);
+}
+function renderCart(){
+  const items = Object.entries(cart);
+  const count = items.reduce((s,[,q])=>s+q,0);
+  const total = items.reduce((s,[id,q])=>{
+    const p = products.find(p=>p.id==id);
+    return s + p.price*q;
+  }, 0);
+  document.getElementById('cartCount').textContent = count;
+  document.getElementById('cartTotal').textContent = total.toLocaleString();
+  document.getElementById('checkoutBtn').disabled = count===0;
+}
+async function checkout(){
+  const btn = document.getElementById('checkoutBtn');
+  btn.disabled = true; btn.textContent = '处理中...';
+  const items = Object.entries(cart).map(([id,q])=>({id:parseInt(id), qty:q}));
+  metrics.total++;
+  const t0 = Date.now();
+  try {
+    const r = await fetch('/a/api/checkout', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({items})
+    });
+    const data = await r.json();
+    if(r.ok){
+      logFeed('ok', `POST /api/checkout → 200 (order ${data.order_id}) ${Date.now()-t0}ms`);
+      toast('ok', '✅ 订单已提交', `订单号 ${data.order_id}，共 ${data.item_count} 件`);
+      Object.keys(cart).forEach(k=>delete cart[k]);
+      renderCart();
+    } else {
+      metrics.fail++;
+      logFeed('err', `POST /api/checkout → ${r.status} ${data.code||''} ${data.message||''}`);
+      toast('err', `❌ 下单失败 (${data.code||r.status})`, data.message || '未知错误');
+    }
+  } catch(e) {
+    metrics.fail++;
+    logFeed('err', `POST /api/checkout → NETWORK ERROR ${e.message}`);
+    toast('err', '❌ 网络错误', e.message);
+  }
+  renderMetrics();
+  btn.disabled = false; btn.textContent = '立即结账';
+}
+
+async function togglePayment(){
+  const sw = document.getElementById('paySwitch');
+  const currentlyHealthy = !sw.classList.contains('off');
+  const newHealthy = !currentlyHealthy;
+  try {
+    const r = await fetch('/a/api/admin/payment', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({healthy: newHealthy})
+    });
+    const data = await r.json();
+    if(data.healthy){
+      sw.classList.remove('off');
+      logFeed('info', 'admin: payment service → HEALTHY ✓');
+      toast('ok', '🟢 Payment service 已恢复', '下单应该成功了');
+      setStatus(true);
+    } else {
+      sw.classList.add('off');
+      logFeed('info', 'admin: payment service → DOWN ✗');
+      toast('warn', '🔴 Payment service 已停机', '接下来的下单会失败');
+      setStatus(false);
+    }
+    // 也刷新 incident 指标
+    refreshStatus();
+  } catch(e) { toast('err', '控制失败', e.message) }
+}
+
+function setStatus(healthy){
+  const pill = document.getElementById('statusPill');
+  const txt = document.getElementById('statusText');
+  if(healthy){
+    pill.classList.remove('err');
+    txt.textContent = '系统正常';
+  } else {
+    pill.classList.add('err');
+    txt.textContent = 'checkout 异常';
+  }
+}
+
+function renderMetrics(){
+  document.getElementById('mTotal').textContent = metrics.total;
+  document.getElementById('mFail').textContent = metrics.fail;
+  const rate = metrics.total===0 ? 100 : Math.round((metrics.total-metrics.fail)/metrics.total*100);
+  const el = document.getElementById('mSuccessRate');
+  el.textContent = rate + '%';
+  el.className = 'value ' + (rate>=95 ? 'ok' : 'err');
+  document.getElementById('mIncident').textContent = metrics.fail>0 ? `INC-2026-07-13-001 (${metrics.fail} 次失败)` : '无';
+}
+
+function logFeed(type, msg){
+  const feed = document.getElementById('feed');
+  const line = document.createElement('div');
+  line.className = 'line ' + type;
+  const ts = new Date().toISOString().substr(11,8);
+  line.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+  feed.appendChild(line);
+  feed.scrollTop = feed.scrollHeight;
+  // keep only last 40 lines
+  while(feed.children.length > 40) feed.removeChild(feed.firstChild);
+}
+
+let toastId = 0;
+function toast(type, title, msg){
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.innerHTML = `<div class="title">${title}</div><div class="msg">${msg}</div>`;
+  c.appendChild(t);
+  setTimeout(()=>{ t.style.opacity=0; t.style.transform='translateX(400px)'; setTimeout(()=>t.remove(),300); }, 3500);
+}
+
+async function refreshStatus(){
+  try {
+    const r = await fetch('/a/api/status');
+    const s = await r.json();
+    const sw = document.getElementById('paySwitch');
+    if(s.payment_healthy){ sw.classList.remove('off'); setStatus(true); }
+    else { sw.classList.add('off'); setStatus(false); }
+  } catch(e){}
+}
+
+renderProducts();
+renderCart();
+renderMetrics();
+refreshStatus();
+setInterval(refreshStatus, 5000);
+logFeed('info', 'shop UI ready');
+</script>
+</body>
+</html>
